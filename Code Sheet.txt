@@ -1,0 +1,81 @@
+1	Eloy-Arizona	5
+2	Florence-Arizona 	5
+3	Phoenix-Arizona 	5
+4	Tucson-Arizona 	5
+5	Adelanto-California 	5
+6	Imperial-California	5
+7	Los Angeles N. St. - California	5
+8	Los Angeles Olive St - California	5
+9	Los Angeles Van Nuys Blvd - California	5
+10	Otay Mesa - California	5
+11	San Diego - California	5
+12	San Francisco - California 	5
+13	Aurora - Colorado 	5
+14	Denver - Colorado 	5
+15	Hartford - Connecticut 	5
+16	Miami - Florida 	5
+17	Miami Krome - Florida 	5
+18	Orlando - Florida 	5
+19	Atlanta Ted Turner Dr - Georgia 	5
+20	Atlanta W Peachtree St - Georgia 	5
+21	Stewart - Georgia 	5
+22	Honolulu - Hawaii 	5
+23	Chicago - Illinois	5
+24	Louisville - Kentucky 	5
+25	LaSalle - Louisiana 	5
+26	New Orleans - Louisiana 	5
+27	Oakdale - Louisiana 	5
+28	Baltimore - Maryland 	5
+29	Boston - Massachusetts 	5
+30	Detroit - Michigan 	5
+31	Bloomington - Minnesota 	5
+32	Kansas City - Missouri 	5
+33	Omaha - Nebraska 	5
+34	Las Vegas - Nevada 	5
+35	Elizabeth - New Jersey 	5
+36	Newark - New Jersey 	5
+37	Otero - New Mexico 	5
+38	Batavia - New York 	5
+39	Buffalo - New York 	5
+40	Fishkill - New York 	5
+41	New York City Broadway - New York 	5
+42	New York City Federal Plaza - New York 	5
+43	Ulster - New York 	5
+44	New York City Varick - New York 	5
+45	Charlotte - North Carolina 	5
+46	Saipan - Northern Mariana Islands 	5
+47	Cleveland - Ohio 	5
+48	Portland - Oregon 	5
+49	Philadelphia - Pennsylvania 	5
+50	York - Pennsylvania 	5
+51	Guaynabo - Puerto Rico 	5
+52	Memphis - Tennessee 	5
+53	Conroe - Texas 	5
+54	Dallas - Texas 	5
+55	El Paso - Texas 	5
+56	El Paso SPC - Texas 	5
+57	Fort Worth - Texas 	5
+58	Harlingen - Texas 	5
+59	Houston - Texas 	5
+60	Houston S Gessner Rd. - Texas 	5
+61	Pearsall - Texas 	5
+62	Port Isabel - Texas 	5
+63	San Antonio - Texas 	5
+64	Salt Lake City - Utah 	5
+65	Arlington - Virginia 	5
+66	Falls Church - Virgina 	5
+67	Seattle - Washington 	5
+68	Tacoma - Washington 	5
+69	First Circuit 	2
+70	Second Circuit 	2
+71	Third Circuit 	2
+72	Fourth Circuit 	2
+73	Fifth Circuit 	2
+74	Sixth Circuit 	2
+75	Seventh Circuit 	2
+76	Eighth Circuit 	2
+77	Ninth Circuit 	2
+78	Tenth Circuit 	2
+79	Eleventh Circuit 	2
+80	Twelvth Circuit - DC 	2
+81	Thirteenth Circuit - Federal 	2
