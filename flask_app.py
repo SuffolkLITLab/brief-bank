@@ -5,17 +5,35 @@ import re
 import MySQLdb
 import hashlib
 import uuid
-from io import StringIO
-import re
 import docx2txt
 from math import ceil
 
+
+#SETTINGS
 db_host = "suffolkbriefbank.mysql.pythonanywhere-services.com"
 db_user = "suffolkbriefbank"
 db_passwd = "JXbasAaXPrJ94ELek"
 db_db ="suffolkbriefbank$default"
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'csv'}
-NUM_OF_DOCS_PER_PAGE = 1
+
+# Number of rows per page.
+NUM_OF_DOCS_PER_PAGE = 25
+
+"""
+How many downloads before you need to upload.
+e.g. if DWLD_UPLD_RATIO = 3 then for every 3 downloads you must upload once.
+Before you can download again.
+"""
+DWLD_UPLD_RATIO = 3
+
+# users with these emails become their own organization.
+common_emails = ["gmail.com", "yahoo.com", "live.com", "aol.com", "outlook.com"]
+
+"""
+home path /
+*remember to change the prefix for the functions.js file too*
+"""
+PREFIX = "/immigration-brief-bank"
+
 
 def ValidEmail(email):
     if re.match("^.+@[a-zA-Z0-9-.]+\.([a-zA-Z]{2,})$", email) != None:
@@ -61,8 +79,8 @@ def head(title,description):
 	<script src="https://code.jquery.com/jquery-1.11.1.min.js"></script>
   	<script src="https://code.jquery.com/jquery-1.10.2.js"></script>
   	<script src="https://code.jquery.com/ui/1.11.1/jquery-ui.js"></script>
+  	<script src="/static/js_bin/jquery.cookie.js"></script>
   	<script src="/static/js_bin/functions.js"></script>
-
   	"""%(title,title,description,title,description)
 
     html = html + """<script>
@@ -95,52 +113,56 @@ def header(usr_id=None,title=None):
     html = html + "<div id='navbar'>"
 
     if usr_id == None:
-        html = html + """<a href="/user/login/" class="navlink" onClick="createCookie('session','',-1);">login</a><body>"""
-        html = html + """<a href="/user/new/" class="navnew">Create Account</a><body>"""
+        html = html + """<a href="%s/user/login/" class="navlink" onClick="createCookie('session','',-1);">login</a><body>"""%(PREFIX)
+        html = html + """<a href="%s/user/new/" class="navnew">Create Account</a><body>"""%(PREFIX)
     else:
-        html = html + f"""<a href="/user/settings/" class="navnew">Account Settings</a><body>
-                         <a href="/" class="navlink" onClick="createCookie('session','',-1);">log out</a>"""
+        html = html + f"""<a href="%s/user/settings/" class="navnew">Account Settings</a><body>
+                         <a href="%s/" class="navlink" onClick="createCookie('session','',-1);">log out</a>"""%(PREFIX, PREFIX)
 
     html= html + "</div>"
 
-    html = html + """<div class="content">
-	<div id="icon" style="background-size: 100px 100px;background-image: url('https://suffolklitlab.org/images/seal.jpg');"><a href="/"><img src="https://suffolklitlab.org/images/space.gif" width="100px" height="100px;" border="0"/></a></div>
+    html = html + """<div class="content" style="background-size: 100px 100px;background-image:url("https://cdn10.bostonmagazine.com/wp-content/uploads/sites/2/2019/11/boston-skyline-now.jpg");">
+	<div id="icon" style="background-size: 100px 100px;background-image: url('https://suffolklitlab.org/images/seal.jpg');"><a href="%s/"><img src="https://suffolklitlab.org/images/space.gif" width="100px" height="100px;" border="0"/></a></div>
 	<h1 style="text-align:center;">Brief Bank<sup> <font size=+1>Beta</font></sup><center style="margin-top:5px;"><span class="subtitle">@ Suffolk Law School</font></span></center></h1>
 
 	<div class="menu_bar">
 		<p style="text-align:center;">
 		<a href="https://suffolklitlab.org/" class="menu">&nbsp;LIT Lab&nbsp;</a>&nbsp;
 		<font style="color:#888;">|</font>&nbsp;
-		<a href="/" class="menu">&nbsp;About&nbsp;</a>"""
+		<a href="%s/about" class="menu">&nbsp;About&nbsp;</a>"""%(PREFIX, PREFIX)
 
     permission = permission_check(usr_id)
-    if permission != 0:
+    if permission >= 2:
         html =html + """
                 &nbsp;<font style="color:#888;">|</font>&nbsp;
-                <a href="/search/" class="menu">&nbsp;Documents&nbsp;</a>
+                <a href="%s/search/" class="menu">&nbsp;Documents&nbsp;</a>
                 &nbsp;<font style="color:#888;">|</font>&nbsp;
-                <a href="/upload/" class="menu">&nbsp;Upload&nbsp;</a>
-                """
-        if permission >= 2:
+                <a href="%s/upload/" class="menu">&nbsp;Upload&nbsp;</a>
+                """%(PREFIX, PREFIX)
+        if permission >= 3:
             html += """
                     &nbsp;<font style="color:#888;">|</font>&nbsp;
-                    <a href="/admin" class="menu">&nbsp;Admin&nbsp;</a>
-                    """
+                    <a href="%s/admin" class="menu">&nbsp;Admin&nbsp;</a>
+                    """%(PREFIX)
 
     html = html + """
 		</p>
-	</div><div background= "/static/images/background.jpg">\n\n"""
+		<div id="cookieConsent">
+            <div id="closeCookieConsent">x</div>
+            By using this website you agree to the <a href="%s">Terms of service</a> and the use of cookies.<a class="cookieConsentOK">That's Fine</a>
+        </div>
+	</div><div background= "%s/static/images/background.jpg">\n\n"""%(url_for('tos'), PREFIX)
 
     return html
 
 def footer():
 
     html = """</div>\n	<div id="footer" class="footer"><a href="https://suffolklitlab.org/"><img src="https://suffolklitlab.org/images/blue_logo.png" width="50px" align="left" border="0"/></a>
-     <a href="/terms">Terms &amp; Privacy</a> | <a href="https://suffolklitlab.org/credits">Credits</a></font>
+     <a href="%s/terms">Terms &amp; Privacy</a> | <a href="https://suffolklitlab.org/credits">Credits</a></font>
 	</div>
 
 </BODY>
-</HTML>"""
+</HTML>"""%(PREFIX)
 
     return html
 
@@ -177,31 +199,54 @@ def permission_check(usr_id):
     if usr_id != None:
         db=MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
         cursor = db.cursor()
-        cursor.execute(f'select role from users where usr_id = {usr_id}')
+        if not cursor.execute('select role from users where usr_id = %s', (usr_id, )):
+            return None
         role = cursor.fetchone()
         db.close()
         return role[0]
 
     return 0
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def download_filed(doc_id):
+# Downloads file from database as a docx or as plain text.
+def download_filed(doc_id, user, text=False):
     try:
         int(doc_id)
     except:
         return "That document does not exist."
+    try:
+        db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=False)
+        cursor =db.cursor()
 
-    db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
-    cursor =db.cursor()
+        # get the (down/up)load of the users org and calculate if upload is 33% of download
+        cursor.execute("select org_id from users where usr_id = %s", (user, ))
+        org = cursor.fetchone()[0]
+        cursor.execute("select upload, download from orgs where org_id = %s", (org, ))
 
-    cursor.execute("select content, file_name from docs where doc_id = %s", (doc_id, ))
-    query = cursor.fetchone()
-    db.close()
-    return Response(query[0], mimetype="text/csv", headers={"Content-disposition": "attachment; filename=%s.docx"%(query[1])})
+        upload, dload = cursor.fetchone()
 
+        cursor.execute("select doc_id from org_doc_log where doc_id = %s and org_id = %s", (doc_id, org, ))
+
+        if not DWLD_UPLD_RATIO * upload >= dload and cursor.fetchone() == None:
+            return "Need to upload"
+
+        cursor.execute("update orgs set download = %s where org_id= %s", (dload + 1, org, ))
+        cursor.execute("insert into org_doc_log values(%s, %s)", (doc_id, org, ))
+        if text:
+            cursor.execute("select plain_text from docs where doc_id = %s", (doc_id, ))
+            text = cursor.fetchone()
+            if text == None:
+                return "That document does not exist."
+            return text[0]
+        else:
+            cursor.execute("select content, file_name from docs where doc_id = %s", (doc_id, ))
+        query = cursor.fetchone()
+        db.commit()
+        db.close()
+        return Response(query[0], mimetype="text/csv", headers={"Content-disposition": "attachment; filename=%s.docx"%(query[1])})
+    except Exception as e:
+        return str(e)
+
+# casts a vote on citations
 def vote(cite_id, ballot, user_id):
     try:
         db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=False)
@@ -227,18 +272,26 @@ def vote(cite_id, ballot, user_id):
     except:
         return False
 
+# checks to see if the object can be turned into an int.
+def int_check(num):
+    try:
+        int(num)
+        return num
+    except:
+        return ''
+def str_check(item):
+    try:
+        return item.isalnum()
+    except:
+        return False
 #===================================================================================================================================
 #===================================================================================================================================
 #===================================================================================================================================
 
 app = Flask(__name__)
 
-@app.errorhandler(401)
-def custom_401(error):
-    return Response('<This account does not have the permission to access this link.>', 401, {'WWW-Authenticate':'Basic realm="Login Required"'})
 
-
-@app.route('/')
+@app.route(PREFIX +'/')
 def home():
     cookie, usr_id = login_check(request.cookies.get('session'))
     title = "LIT Project"
@@ -256,7 +309,7 @@ def home():
     html = "<html>"+head(title,description)+header(usr_id)+body+footer()+"\n</html>"
     return html
 
-@app.route('/user/new/', methods=['GET','POST'])
+@app.route(PREFIX + '/user/new/', methods=['GET','POST'])
 def usr_new():
     cookie, usr_id = login_check(request.cookies.get('session'))
 
@@ -298,8 +351,18 @@ def usr_new():
         pass_the_salt = pass_the_salt.encode('utf-8')
         hash = hashlib.sha512(pass_the_salt).hexdigest()
 
-        db_query = "INSERT INTO users (`name`, `email`, `crumb`, `salt`, `pass`, `created_on`) VALUES (%s, %s, conv(floor(rand() * 99999999999999), 20, 36), %s, %s, NOW(), %s);"
-        c.execute(db_query, (username, email, salt, hash,))
+        db_query = "INSERT INTO users (`name`, `email`, `crumb`, `salt`, `pass`, `created_on`, `org_id`) VALUES (%s, %s, conv(floor(rand() * 99999999999999), 20, 36), %s, %s, NOW(), %s);"
+        domain = email.split("@")[-1].lower()
+        if domain in common_emails:
+            c.execute(db_query, (username, email, salt, hash, 1))
+        else:
+            c.execute("select org_id from orgs where name = %s", (domain, ))
+            row = c.fetchone()
+            if row == None:
+                c.execute("insert into orgs(name) values(%s)", (domain, ))
+                c.execute(db_query, (username, email, salt, hash, c.lastrowid))
+            else:
+                c.execute(db_query, (username, email, salt, hash, row[0]))
 
         db_query = "select `crumb` from `users` where email = %s"
         c.execute(db_query, (email,))
@@ -373,7 +436,7 @@ def usr_new():
     html = "<html>"+head(title,description)+header(usr_id,title)+body+footer()+"\n</html>"
     return html
 
-@app.route('/user/login/', methods=['GET','POST'])
+@app.route(PREFIX + '/user/login/', methods=['GET','POST'])
 def usr_login():
     if request.form.get("email"):
         email = request.form.get("email")
@@ -411,8 +474,8 @@ def usr_login():
             <p>
             <input type="submit" value="Submit">
             </p>
-            <p><a href="/user/new/">Create a New Account</a></p>
-            </form></div>"""%email
+            <p><a href="%s/user/new/">Create a New Account</a></p>
+            </form></div>"""%(email, PREFIX)
 
         body = body + """<div class="tosfloat">%s</div>"""%tos_html
         body = body + "</div>"
@@ -423,8 +486,8 @@ def usr_login():
         return response
 
 
-@app.route('/user/settings/', methods=['GET','POST'])
-def usr_settings(user= None):
+@app.route(PREFIX + '/user/settings/', methods=['GET','POST'])
+def usr_settings():
     cookie, usr_id = login_check(request.cookies.get('session'))
 
 
@@ -435,8 +498,12 @@ def usr_settings(user= None):
     else:
         new_header = header(usr_id)
         if 'user' in request.args:
-            if permission_check(usr_id) >= 2:
-                usr_id = int(request.args['user'])
+            cand_id = request.args.get("user")
+            cur_usr_check = permission_check(usr_id)
+            other_usr_check = permission_check(cand_id)
+
+            if cur_usr_check >= 3 and other_usr_check < cur_usr_check:
+                usr_id = int(cand_id)
             else:
                 return "This account does not have access to this link.", 405
 
@@ -559,7 +626,7 @@ def usr_settings(user= None):
         html = "<html>"+head(title,description)+new_header+body+footer()+"\n</html>"
         return html
 
-@app.route('/terms/')
+@app.route(PREFIX + '/terms/')
 def tos():
     cookie, usr_id = login_check(request.cookies.get('session'))
     title = "Terms of Use"
@@ -567,10 +634,9 @@ def tos():
     html = "<html>"+head(title,description)+header(usr_id)+"<div class=\"content\">"+tos_html+"</div>"+footer()+"\n</html>"
     return html
 
-@app.route('/docs/', methods=['POST', 'GET'])
-def docs(docs_list=None, search=None):
+@app.route(PREFIX + '/docs/', methods=['POST', 'GET'])
+def docs():
     cookie, usr_id = login_check(request.cookies.get('session'))
-
     if usr_id == None:
         response = make_response(redirect(url_for('usr_login'), code=302))
         return response
@@ -582,22 +648,93 @@ def docs(docs_list=None, search=None):
         +"</div>"+ footer() +"\n</html>"
         return response
 
-    if request.method == "POST":
-        doc_id = request.form.get('download')
-        if doc_id:
-            return download_filed(doc_id)
-
     db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
     cursor =db.cursor()
 
+    doc_id = request.form.get('download')
+    if doc_id:
+        return download_filed(doc_id, usr_id)
 
+    if request.args:
+        try:
+            query_list = list()
+            sql = ""
+            flag = False
+
+            doc_type = int_check(request.args.get('doc_type'))
+            if doc_type != '':
+                flag = True
+                sql_from = """from (select docs.* from docs, rel_docs_types where type_id = %s and docs.doc_id = rel_docs_types.doc_id)
+                as all_docs"""%(doc_type)
+            else:
+                sql_from = "from docs as all_docs"
+
+            body = int_check(request.args.get('body'))
+            if body != '':
+                query_list.append("body = %s"%(body))
+
+            venue = int_check(request.args.get('venue'))
+            if venue != '':
+                query_list.append("venue_id = %s"%(venue))
+
+            outcome = int_check(request.args.get('outcome'))
+            if outcome != '':
+                query_list.append("all_docs.outcome = %s"%(outcome))
+
+            pattern = request.args.get('pattern')
+            pat_list= list()
+            for pat in [pattern[i:i+9] for i in range(0, len(pattern), 9)]:
+                if len(pat) % 9 == 0:
+                    pat_list.append("rel_fact_doc.pattern = \"%s\""%(pat))
+
+            if pat_list:
+                sql_from += ", rel_fact_doc"
+                if len(query_list) >= 1:
+                    sql_where = " where all_docs.doc_id = rel_fact_doc.doc_id and (" + " and ".join(query_list) + ") and ( " + " or ".join(pat_list) + ")"
+                else:
+                    sql_where = " where all_docs.doc_id = rel_fact_doc.doc_id and (" + " or ".join(pat_list) + ")"
+            else:
+                if len(query_list) >= 1:
+                    sql_where = " where (" + " and ".join(query_list) + ")"
+                else:
+                    sql_where = None
+
+            search_flag = None
+            search_query = request.args.get('search_query')
+            if search_query and str_check(search_query):
+                search_str = "%" +search_query+ "%"
+                search_flag = (search_str, search_str, search_str, )
+                if sql_where != None:
+                    sql_where += " and (all_docs.plain_text LIKE %s or all_docs.description LIKE %s or all_docs.file_name LIKE %s )"
+                    sql += sql_from + sql_where
+                    #return sql
+                    #cursor.execute(sql, (search_str, search_str, search_str, ))
+                else:
+                    sql += sql_from + " where (all_docs.plain_text LIKE %s or all_docs.description LIKE %s or all_docs.file_name LIKE %s )"
+                    #return sql
+                    #cursor.execute(sql, (search_str, search_str, search_str, ))
+            else:
+                #sql_where += ")"
+                if sql_where != None:
+                    sql += sql_from + sql_where
+                else:
+                    if not flag:
+                        return search(highlights="<p style='display:inline;text-align:center;\
+                        background-color:red;color:white;'>You have to choose options.<p>")
+                    else:
+                        sql += sql_from
+
+        except:
+            return search("<p style='display:inline;text-align:center;\
+                background-color:red;color:white;'>There was a problem fetching the documents.<p>")
 
     # pagination setup
-    if docs_list == None:
-        cursor.execute("SELECT COUNT(doc_id) FROM docs")
-        total_pages = ceil(int(cursor.fetchone()[0])/NUM_OF_DOCS_PER_PAGE)-1
+    if search_flag:
+        cursor.execute("SELECT COUNT(all_docs.doc_id) " + sql, search_flag)
     else:
-        total_pages= ceil(len(docs_list)/NUM_OF_DOCS_PER_PAGE)-1
+        cursor.execute("SELECT COUNT(all_docs.doc_id) " + sql)
+
+    total_pages = ceil(int(cursor.fetchone()[0])/NUM_OF_DOCS_PER_PAGE)-1
 
     if 'page' in request.args:
         try:
@@ -606,27 +743,25 @@ def docs(docs_list=None, search=None):
                 if page > total_pages:
                     page = total_pages
             else:
-                return "There is no page number, " + request.args['page']
+                return search("The page you are looking for does not exist")
         except:
-            return "There is no page " + request.args['page']
+            return search("The page you are looking for does not exist")
+
     else:
         page = 0
+    limit = " LIMIT %d, %d"%(page * NUM_OF_DOCS_PER_PAGE, NUM_OF_DOCS_PER_PAGE)
+    sql = "SELECT all_docs.file_name, all_docs.doc_id " + sql +limit
+    #return str((sql, search_flag))
+    try:
+        if search_flag:
+            cursor.execute(sql, search_flag)
+        else:
+            cursor.execute(sql)
+    except:
+        return str(sql) + '\n\n' + str(search_flag)
 
-    if docs_list == None:
-        return "worked1"
-        sql = "SELECT file_name, doc_id FROM docs LIMIT %d, %d"%(page * NUM_OF_DOCS_PER_PAGE, NUM_OF_DOCS_PER_PAGE)
-        cursor.execute(sql)
-        docs= cursor.fetchall()
-    else:
-        start_slice = page * NUM_OF_DOCS_PER_PAGE
-        end_slice = start_slice + 30
+    docs_list= cursor.fetchall()
 
-        docs = list()
-
-
-        for item in list(docs_list)[start_slice:end_slice]:
-            cursor.execute("SELECT file_name, doc_id FROM docs where doc_id =%s ", (item , ))
-            docs.extend(cursor.fetchall())
 
     all_docs = """<center><form method="post"><table class="w3-table-all w3-hoverable"><tr>
                     <th>Brief Title</th>
@@ -638,25 +773,34 @@ def docs(docs_list=None, search=None):
 
     #num_pages = ceil(cursor.execute("SELECT COUNT(*) FROM docs")/30)
     try:
-        for doc, doc_id in docs:
-            cursor.execute(f"select name from authorship inner join users on users.usr_id= authorship.usr_id where doc_id = {str(doc_id)}")
+        for doc, doc_id in docs_list:
+            cursor.execute("select name from authorship inner join users on users.usr_id= authorship.usr_id where doc_id = %s",(doc_id, ))
             authors = cursor.fetchall()
             authors = ", ".join(author[0] for author in authors)
-            all_docs += """<tr><td><a href="%s">%s</a></td><td>Future field</td><td><button value="%s" name= "download"> Download</button></td><td>%s</td></tr>"""%(url_for('doc', docID= doc_id), doc, doc_id, authors)
+            cursor.execute("select b.name from rel_docs_types a, doc_types b where a.doc_id = %s and b.type_id = a.type_id", (doc_id, ))
+            types_fetched = cursor.fetchall()
+            if types_fetched:
+                types = ", ".join([item[0] for item in types_fetched])
+            else:
+                types = "N/A"
+            all_docs += """<tr><td><a href="%s">%s</a></td>
+                           <td>%s</td><td><button value="%s" name= "download"> Download</button>
+                           </td><td>%s</td></tr>"""%(url_for('doc', docID= doc_id), doc, types, doc_id, authors)
         all_docs += '</form></table></center>'
-    except:
+    except Exception as e:
         print("Error: could not fetch data.")
-        all_docs = "<center>There was a problem fetching the documents.</center>"
+        all_docs = "<center>There was a problem fetching the documents.</center>" + str(e)
     db.close()
     page_nav = ""
-
+    first_page = url_for('docs', doc_type=doc_type, body=body, venue=venue, outcome=outcome, pattern=pattern, search_query=search_query, page=1)
+    last_page = url_for('docs', doc_type=doc_type, body=body, venue=venue, outcome=outcome, pattern=pattern, search_query=search_query, page=total_pages+1)
     for page_num in [numb for numb in range(page-3, page+3) if numb >= 0 and numb <= total_pages]:
         if page_num == page:
-            page_nav += f"<a class=\"active\" href=\"#\">{page_num+1}</a>"
+            page_nav += "<a class=\"active\" href=\"#\">%s</a>"%(page_num+1)
         else:
-            page_nav += f"<a href=\"{url_for('docs', page=page_num+1)}\">{page_num+1}</a>"
+            page_nav += "<a href=\"%s\">%s</a>"%(url_for('docs', doc_type=doc_type, body=body, venue=venue, outcome=outcome, pattern=pattern, search_query=search_query, page=page_num+1), page_num+1)
     if total_pages > 3:
-        page_nav= "<div class=\"pagination\"><a href=\"/docs/?page=1\">First</a>" + page_nav + "<a href=\"/docs/?page=%d\">Last</a></div>"%(total_pages+1)
+        page_nav= "<div class=\"pagination\"><a href=\"%s\">First</a>%s<a href=\"%s\">Last</a></div>"%(first_page, page_nav, last_page)
     else:
         page_nav= "<div class=\"pagination\">" + page_nav + "</div>"
 
@@ -668,8 +812,9 @@ def docs(docs_list=None, search=None):
     html = "<html>"+head(title,description) + header(usr_id)+" <h2>Documents</h2> <div class=\"content\">"+ all_docs + footer() +"\n</html>"
     return html
 
-@app.route('/search/', methods=['POST', 'GET'])
-def search():
+
+@app.route(PREFIX + '/search/', methods=['POST', 'GET'])
+def search(highlights=''):
     cookie, usr_id = login_check(request.cookies.get('session'))
 
     if usr_id == None:
@@ -678,20 +823,49 @@ def search():
 
     permission = permission_check(usr_id)
     if permission < 2:
-        return "Not allowed!"
+        return make_response(redirect(url_for('home'), code=302))
 
     db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
     cursor =db.cursor()
 
-    if request.method == "POST":
-        if len(request.form) > 0:
-            docs_list= set()
+    if request.method == 'POST':
+        try:
+            doc_type = int_check(request.form.get('doc_type'))
+            body= int_check(request.form.get("body"))
+            venue= int_check(request.form.get("venue"))
+            outcome= int_check(request.form.get("outcome"))
+            search_query= request.form.get("search").strip()
+            patterns =list()
+
             for pattern, on in request.form.to_dict().items():
                 if on == "on":
-                    cursor.execute("select doc_id from rel_fact_doc where pattern =%s", (pattern, ))
-                    for item in cursor.fetchall():
-                        docs_list.add(item[0])
-            return docs(docs_list)
+                    if len(pattern)%9 == 0:
+                        patterns.append(pattern)
+
+            for element in patterns:
+                cur_elem = element[0:3]+"000000"
+                if cur_elem in patterns and element != cur_elem:
+                    patterns.remove(cur_elem)
+            patterns = "".join(list(patterns))
+            if int_check(patterns) and len(patterns) != 0:
+                return str(request.form)
+                patterns = ''
+                highlights +="<p style='background-color: #FF522D;text-align:center;color:white;'>\
+                There was something wrong with your fact pattern.</p>"
+            if not re.match('^[a-zA-Z0-9_ ]+$',search_query):
+                search_query = ''
+                highlights +="<p style='background-color: #FF522D;text-align:center;color:white;'>\
+                The text enterned is not alphanumeric, please check it and try again.</p>"
+            if body == '' and doc_type == '' and venue == '' and outcome == '' and search_query == '' and patterns == '':
+                highlights +="<p style='background-color: #FF522D;text-align:center;color:white;'>\
+                You must fill in the form before submitting.</p>"
+            else:
+                search_query = search_query.strip()
+                return make_response(redirect(url_for('docs', doc_type=doc_type, body=body, venue=venue, outcome=outcome, pattern=patterns, search_query=search_query)))
+
+        except Exception as e:
+            return str(e)
+            highlights += "Error fetching data from form."
 
     cursor.execute("select * from fact_patterns")
     all_pats = list(cursor.fetchall())
@@ -704,10 +878,10 @@ def search():
             for pat in all_pats:
                 if pat[0][:3] == pat_copy and pat != pattern:
                     org_pats[-1].append(pat)
-        fact_pattern_html = "<div><h2>Fact Pattern</h2><form method= \"POST\">"
+        fact_pattern_html = "<h2>Fact Pattern</h2><p>Check all the boxes that apply to this document.</p>"
     for pattern in org_pats:
         fact_pattern_html += """<label class="container">
-                                <input type="checkbox" class= 'main' name="%s">
+                                <input type="checkbox" class= 'main' name="%s" onload="change_onload()" onclick="on_change()">
                                 <span class="checkmark"></span>
                                 <span class="on-top">%s</span>
                                 </label>
@@ -715,16 +889,71 @@ def search():
         if len(pattern) > 1:
             fact_pattern_html += """<div style='display: none;' class= "%s"> """%(pattern[0][0])
             for pat in pattern[1:]:
-                fact_pattern_html += """<label>%s
-                                      <input type="checkbox" name="%s">
-                                      </label><br>"""%(pat[1], pat[0])
+                fact_pattern_html += """<label>
+                                      <input type="checkbox" name="%s"> %s
+                                      </label><br>"""%(pat[0], pat[1])
             fact_pattern_html += "</div>"
-    fact_pattern_html += "</div></div><br><button type=\"submit\">Search</button></center></form>"
+    fact_pattern_html += "</div></div>"
+    """~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"""
+    search_field = """
+        <p style='display:text-align;'>You can search through all the documents using the search bar. By picking fields and fact patterns you can narrow your search.</p>
+             <div style='display: flex;align-items:center;justify-content:center;'>
+                <input type="text" placeholder="Search.." name="search">
+                <button type="submit"><i class="fa fa-search"></i></button>
+             </div>
+             """
 
-    html = "<html>"+head("results", "Search results") + header(usr_id) + fact_pattern_html + footer() +"\n</html>"
+    outcomes = """
+                    <br>
+                    <label>
+                    Outcome:
+                    <select name= "outcome">
+                    <option value="" selected>All</option>
+                    %s
+                    </select></label>
+                    <br>
+                """
+    cursor.execute("select * from outcomes")
+    outcome_list = ""
+    for outcome_id, name in cursor.fetchall():
+        outcome_list += """<option value= "%s">%s</option>\n"""%(outcome_id, name)
+    outcomes = outcomes%(outcome_list)
+
+    # get bodies to display them in form.
+    fields = """
+                <h2>Fields</h2>
+                <label>Type: <select name= "doc_type">"
+                <option value="" selected>All</option>
+            """
+
+    # get doc types to display in form
+    cursor.execute("select * from doc_types")
+    for type_id, name in cursor.fetchall():
+        fields += "<option value=\"%d\">%s</option>\n"%(type_id, name)
+    fields += """</select></label>
+                <br>
+                %s
+                 <br><label>Body: <select name= "body" onchange= "change_select(false)">
+                 <option value="" selected>All</option>"""%(outcomes)
+
+    cursor.execute("select * from bodies")
+    for body_id, name in cursor.fetchall():
+        fields += "<option value=\"%d\">%s</option>\n"%(body_id, name)
+    fields += """
+                </select></label><br>
+                <br>
+                <label style= 'display: none;' name= "venue">Venue: <select name= "venue"></select></label><br>
+              """
+    fields = "<div class='content'>" + fields + "</div>"
+    fact_pattern_html = "<div class='content'>" + fact_pattern_html + "</div>"
+
+    result = "<form action=\".\" method=\"POST\" enctype = \"multipart/form-data\" class=\"search\">"+search_field + "<div class='space-around'>" + fields + fact_pattern_html + "</div></form>"
+    highlights = "<p style='display:inline;text-align:center;\
+                background:red;color:white;'>" + highlights + "</p>"
+    html = "<html>"+head("results", "Search results") + header(usr_id) + highlights+result +"</div>"+ footer() +"\n</html>"
     return html
 
-@app.route('/upload/', methods=['POST', 'GET'])
+@app.route(PREFIX + '/upload/', methods=['POST', 'GET'])
 def upload():
     cookie, usr_id = login_check(request.cookies.get('session'))
 
@@ -746,33 +975,37 @@ def upload():
         file_type = request.form.get("doc_type")
         file_venue = request.form.get("venue")
         file_body = request.form.get("body")
+        file_outcome = request.form.get("outcome")
 
         if file_name != "" and file != "":
             if len(file) > 4194304:
                 upload_form += "<h3 color =\"red\>Upload Failed: The file is too big, the maximum is 4MB</h3>"
             else:
                 try:
+                    # saving file for extracting data.
                     with open("temp.docx", 'wb') as f:
                         f.write(file)
-                except:
-                    upload_form +="could not open file in server."
-                try:
+                    file_as_text = docx2txt.process("temp.docx")
 
-                    db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=False)
+                    db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=False, charset='utf8')
                     cursor =db.cursor()
 
-                    sql = """insert into docs (file_name, content, description, venue_id, body) values (%s, %s, %s, %s, %s)"""
-                    #return str( (sql, (file_name, file, file_desc, file_venue, file_body)) )
-
+                    sql = """insert into docs (file_name, content, description, venue_id, body, outcome, plain_text) values (%s, %s, %s, %s, %s, %s, %s)"""
                     # insert document into database
-                    cursor.execute(sql, (file_name, file, file_desc, file_venue, file_body, ))
 
+                    cursor.execute(sql, (file_name, file, file_desc, file_venue, file_body, file_outcome, str(file_as_text), ))
                     doc_id = cursor.lastrowid
-
+                    flag = True
                     # insert the fact patterns
                     for pattern, on in request.form.to_dict().items():
                         if on == "on":
+                            if flag:
+                                flag = False
                             cursor.execute("insert into rel_fact_doc values(%s, %s)"%(pattern, doc_id))
+
+                    if flag:
+                        raise Exception('The user did not submit any fact pattern.')
+
                     # insert the user as the author
                     cursor.execute("insert into authorship values (%d, %d)"%(usr_id, doc_id))
 
@@ -781,7 +1014,6 @@ def upload():
 
                     # extract citations from docx file and save them to db
                     cursor.execute("select auth_id, regex from authorities")
-                    file_as_text = docx2txt.process("temp.docx")
                     citation_sql = """insert into citations (cite, authority) values (%s, %s)"""
                     rel_citation_sql = """insert into rel_citations values (%s, %s)"""
 
@@ -796,12 +1028,19 @@ def upload():
                             else:
                                 cursor.execute(rel_citation_sql, (doc_id, cur, ))
 
+                    cursor.execute("select org_id from users where usr_id = %s", (usr_id, ))
+                    org = cursor.fetchone()[0]
+
+                    cursor.execute("select upload from orgs where org_id = %s", (org, ))
+                    upload = cursor.fetchone()[0]
+                    cursor.execute("insert into org_doc_log values(%s, %s)", (doc_id, org, ))
+                    cursor.execute("update orgs set upload = %s where org_id= %s", (upload + 1, org, ))
                     db.commit()
                     db.close()
-                    upload_form += "<h3 color =\"green\">Your file was uploaded successfully.</h3>"
+                    upload_form += "<h3 style=\"background-color: #77FF73;text-align:center;\">Your file was uploaded successfully.</h3>"
 
                 except:
-                    upload_form += "<h3 color ='red'>Could not upload the document.</h3>"
+                    upload_form += "<h3 style=\"background-color: #FF522D;text-align:center;\">Could not upload the document.</h3>"
         else:
             upload_form += "<h3 style=\"color:red\">No document was uploaded.</h3>"
 
@@ -809,21 +1048,41 @@ def upload():
         db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
         cursor =db.cursor()
 
+        # get outcomes to display in upload
+        outcomes = """
+                    <br>
+                    <label>
+                    Outcome:
+                    <select name= "outcome" required>
+                    <option value="" selected disabled hidden> Select an Option </option>
+                    %s
+                    </select></label>
+                    <br>
+                   """
+        cursor.execute("select * from outcomes")
+        outcome_list = ""
+        for outcome_id, name in cursor.fetchall():
+            outcome_list += """<option value= "%s">%s</option>\n"""%(outcome_id, name)
+        outcomes = outcomes%(outcome_list)
+
         # get bodies to display them in form.
         fields = """<div class="space-around">
                     <div><h2>Upload Form</h2>
                     Document Title:
                     <input name="title" required><br><br>
-                    <label>Type: <select name= "doc_type">"
-                    <option value="none" selected disabled hidden> Select an Option </option>
+                    <label>Type: <select name= "doc_type" required>
+                    <option value="" selected disabled hidden> Select an Option </option>
                 """
+
         # get doc types to display in form
         cursor.execute("select * from doc_types")
         for type_id, name in cursor.fetchall():
             fields += "<option value=\"%d\">%s</option>\n"%(type_id, name)
-        fields += """</select></label><br>
-                     <br><label>Body: <select name= "body" onchange= "change_select()">
-                     <option value="none" selected disabled hidden> Select an Option </option>"""
+        fields += """</select></label>
+                    <br>
+                    %s
+                     <br><label>Body: <select name= "body" onchange= "change_select()" required>
+                     <option value="" selected disabled hidden> Select an Option </option>"""%(outcomes)
 
         cursor.execute("select * from bodies")
         for body_id, name in cursor.fetchall():
@@ -831,12 +1090,11 @@ def upload():
 
         fields += "</select></label><br>\n"
 
-        fields += """</select>
+        fields += """
                     <br>
-                     <label style= "display:none;" name= "venue">Venue: <select name= "venue"></select></label><br><br>Description:<br>
-                     <textarea name="desc" placeholder= "Enter a brief description about the document." rows="4" cols="50" required>
-                     </textarea><br>
-                     <label>Upload Brief:<input type = "file" name = "file" required>
+                     <label style= 'display: none;' name= "venue">Venue: <select name= "venue"></select></label><br><br>Description:<br>
+                     <textarea name="desc" placeholder= "Enter a brief description about the document." rows="4" cols="50" required></textarea><br><br>
+                     <label>Upload Brief:  <input type = "file" name = "file" required>
                      <input type="hidden" name="MAX_FILE_SIZE" value="4194304" /></label>
                      <br></div>"""
 
@@ -853,7 +1111,7 @@ def upload():
                     if pat[0][:3] == pat_copy and pat != pattern:
                         org_pats[-1].append(pat)
 
-        fact_pattern_html = "<div><h2>Fact Pattern</h2>"
+        fact_pattern_html = "<div><h2>Fact Pattern</h2> <p>Check all the boxes that apply to this document.</p>"
         for pattern in org_pats:
             fact_pattern_html += """<label class="container">
                                     <input type="checkbox" class= 'main' name="%s">
@@ -862,13 +1120,13 @@ def upload():
                                     </label>
                                   """%(pattern[0][0], pattern[0][1])
             if len(pattern) > 1:
-                fact_pattern_html += """<div style='display: none;' class= "%s"> """%(pattern[0][0])
+                fact_pattern_html += """<div class= "%s" hidden> """%(pattern[0][0])
                 for pat in pattern[1:]:
-                    fact_pattern_html += """<label>%s
-                                          <input type="checkbox" name="%s">
-                                          </label><br>"""%(pat[1], pat[0])
+                    fact_pattern_html += """<label>
+                                          <input type="checkbox" name="%s"> %s
+                                          </label><br>"""%(pat[0], pat[1])
                 fact_pattern_html += "</div>"
-        fact_pattern_html += "</div></div><br><center><button type=\"submit\">Submit</button></center></form>"
+        fact_pattern_html += "</div></div><br><center><button type=\"submit\" onclick=\"return check_fact_pattern();\">Submit</button></center></form>"
 
 
     except:
@@ -880,7 +1138,7 @@ def upload():
     html = "<html>"+head(title,description) + header(usr_id) + upload_form + footer() +"\n</html>"
     return html
 
-@app.route('/admin/', methods=['GET', 'POST'])
+@app.route(PREFIX + '/admin/', methods=['GET', 'POST'])
 def admin():
     cookie, usr_id = login_check(request.cookies.get('session'))
     permission = permission_check(usr_id)
@@ -890,24 +1148,68 @@ def admin():
     if permission >= 3:
 
         try:
+            highlights = ""
+            if "delete" in request.form and request.method == "POST":
+                try:
+                    db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=False)
+                    cursor =db.cursor()
+
+                    del_usr = int(request.form["delete"])
+                    cursor.execute("select role from users where usr_id = %s", (del_usr, ))
+                    if cursor.fetchone()[0] < permission:
+                        cursor.execute("select doc_id from authorship where usr_id = %s", (del_usr, ))
+                        all_docs = cursor.fetchall()
+                        if all_docs == None:
+                            cursor.execute("delete from users where usr_id = %s", (del_usr, ))
+                        else:
+                            cursor.execute("delete from authorship where usr_id = %s", (del_usr, ))
+                            for doc in all_docs:
+                                cursor.execute("select * from authorship where doc_id = %s", (doc[0], ))
+                                if cursor.fetchone() == None:
+                                    cursor.execute("delete from rel_docs_types where doc_id = %s", (doc[0], ))
+                                    cursor.execute("delete from rel_fact_doc where doc_id = %s", (doc[0], ))
+                                    cursor.execute("delete from rel_citations where doc_id = %s", (doc[0], ))
+                                    cursor.execute("delete from docs where doc_id = %s", (doc[0], ))
+                            cursor.execute("delete from users where usr_id = %s", (del_usr, ))
+                        db.commit()
+                        db.close()
+                        highlights = "<p style=\"background-color: #77FF73;text-align:center;\">User " + str(del_usr) + " was succesfully deleted.</p>"
+                    else:
+                        highlights += "<p style=\"background-color: #FF4545;text-align:center;\">You do not have the permission to delete this user.</p>"
+                except:
+                    highlights  += "<p style=\"background-color: #FF4545;text-align:center;\">There was a problem updating the users, with the server:</p>"
+
             db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
             cursor =db.cursor()
 
-            highlights = ""
-            if request.form:
+            if "submit" in request.form:
                 try:
                     flag = 0
                     for u_id, role in request.form.items():
-                        q= "update users set role = %s where usr_id = %s and role <> %s"% (role, u_id, role)
-                        cursor.execute(q)
-                        flag += 1
-                    if flag != 0:
-                        highlights += "The users were updated."
-                except:
-                    highlights  += "There was a problem updating the users, with the server"
+                        if u_id not in ['submit', 'delete']:
+                            q= "update users set role = %s where usr_id = %s and role <> %s and role < %s"% (role, u_id, role, permission)
+                            if cursor.execute(q):
+                                flag = 1
+                    if flag:
+                        highlights += "<p style=\"background-color: #77FF73;text-align:center;\">The users were updated</p>"
+                except Exception as e:
+                    highlights  += "<center style=\"background=red\">There was a problem updating the users, with the server</center>" + str(e)
 
-            cursor.execute("SELECT COUNT(usr_id) FROM users")
+
+            if "archive" in request.args:
+                if request.args["archive"] == "1":
+                    temp = "role = 1"
+                    archive = "0\">Show unarchived"
+                else:
+                    archive = "1\">Show Archived"
+                    temp = "role <> 1"
+            else:
+                archive = "1\">Show Archived"
+                temp = "role <> 1"
+
+            cursor.execute("SELECT COUNT(usr_id) FROM users %s"%("where " + temp))
             total_pages = ceil(int(cursor.fetchone()[0])/NUM_OF_DOCS_PER_PAGE)-1
+
             if 'page' in request.args:
                 try:
                     if int(request.args['page']) >= 1:
@@ -923,13 +1225,21 @@ def admin():
                     return "There is no page " + request.args['page']
             else:
                 page = 0
-            if permission >=4:
-                sql = "SELECT usr_id, name, email, role FROM users WHERE role <> 1 ORDER BY role LIMIT %d, %d"%(page * NUM_OF_DOCS_PER_PAGE, NUM_OF_DOCS_PER_PAGE)
-            else:
-                cursor.execute('select email from users where usr_id = %s'%usr_id)
-                sql = "SELECT usr_id, name, email, role FROM users WHERE role <> 1 and email like LIKE '%{$%s}%' ORDER BY role LIMIT %d, %d"%(page * NUM_OF_DOCS_PER_PAGE, NUM_OF_DOCS_PER_PAGE, cursor.fetchone()[0].split("@")[-1])
 
-            cursor.execute(sql)
+            if permission >= 4: # for super admin
+                sql = "SELECT usr_id, name, email, role FROM users WHERE %s ORDER BY role LIMIT %d, %d"%(temp, page * NUM_OF_DOCS_PER_PAGE, NUM_OF_DOCS_PER_PAGE)
+            else: # for org admin
+                if len(temp) > 0:
+                    temp += " and"
+                cursor.execute('select org_id from users where usr_id = %s'%usr_id)
+                sql = "SELECT usr_id, name, email, role FROM users WHERE %s org_id = %s ORDER BY role LIMIT %d, %d"\
+                %(temp, cursor.fetchone()[0], page * NUM_OF_DOCS_PER_PAGE, NUM_OF_DOCS_PER_PAGE)
+
+
+
+            cursor.execute("select * from roles")
+            roles = list(cursor.fetchall()) # list of available roles
+
             all_users = """<form action="." method="POST"><table class="w3-table-all w3-hoverable">
                             <tr class="w3-light-grey">
                                 <th>User ID</th>
@@ -938,25 +1248,29 @@ def admin():
                                 <th>Permissions</th>
                                 <th>Actions</th>
                             </tr>"""
-
             # create all the users along with their permissions/forms in html
+            cursor.execute(sql)
             for u_id, name, email, perm in cursor.fetchall():
-
-                perm_list = [(0,'Pending'), (1, 'Archive'), (2, 'Contributer'), (3, 'Org Admin'), (4, 'Super Admin')]
+                perm_list = roles.copy()
                 cur_perm = perm_list.pop(perm)
-                other1= perm_list[0]
-                other2= perm_list[1]
-                other3= perm_list[2]
+                all_users +="""<tr><td>%s</td><td>%s</td>
+                                <td>%s</td>
+                                <td>
+                                <select name="%s">
+                                <option value="%s">%s</option>
+                            """%(u_id, name.capitalize(), email, u_id, cur_perm[0], cur_perm[1])
+                for item in perm_list:
+                    all_users += "<option value=\"%s\">%s</option>"%(item[0], item[1])
 
-                all_users += f"""<tr><td>{u_id}</td>\n<td>{name.capitalize()}</td>\n
-                                <td>{email}</td>
-                                \n<td><select name="{u_id}">
-                                    <option value="{cur_perm[0]}">{cur_perm[1]}</option>
-                                    <option value="{other1[0]}">{other1[1]}</option>
-                                    <option value="{other2[0]}">{other2[1]}</option>
-                                    <option value="{other3[0]}">{other3[1]}</option>
-                                  </select></td>\n
-                                <td><a href="{url_for('usr_settings', user=int(u_id))}"><button type= "button">Reset</button></a>  <a href="{url_for('admin', delete=int(u_id))}"><button type= "button" style= "background-color: #f44336; color: white;">Delete</button></td></tr>"""
+
+                all_users += """
+                                </select></td>
+                                <td>
+                                <a href="%s">
+                                <button type= "button">Modify</button></a>
+                                <button name="delete" value= "%s" type= "submit" style= "background-color: #f44336; color: white;" onclick="return confirm('*WARNING*\nDeleting this user will delete all related data ( e.g. documents) cannot be recovered. You can also archive users by selecting archive from the permissions dropdown menu.')">Delete</button>
+                                </td></tr>
+                            """%(url_for('usr_settings', user=int(u_id)), u_id)
 
             # define the tags and links for each page
             page_nav = ""
@@ -970,47 +1284,56 @@ def admin():
             else:
                 page_nav= "<div class=\"pagination\">" + page_nav + "</div>"
 
-            all_users += '</table><br><button type="submit" onclick= "return confirm(\'Are you sure you want to make these changes?\')">Save</button></form>' + page_nav
+            all_users += '</table><br><button name=\'submit\' type="submit" onclick= "return confirm(\'Are you sure you want to make these changes?\')">Save</button></form><br>' + page_nav
         except:
             print("Error: could not fetch data.")
             all_users = "<center>There was a problem fetching the document.</center>"
         if permission_check(usr_id) < 2:
             return make_response(redirect(url_for('home'), code=302))
-
-        html = "<html>"+head(title,description) + header(usr_id)+" <h2>All Users</h2> <center><div class=\"content\">"+ highlights + all_users  +"</div></center>"+ footer() +"\n</html>"
+        html = "<html>"+head(title,description) + header(usr_id)+ highlights + "<h2>All Users</h2> <center><div class=\"content\"><a href = \""+ PREFIX +"/admin/?archive=%s</a>"%(archive) + all_users  +"</div></center>"+ footer() +"\n</html>"
         db.close()
         return html
     else:
         return make_response(redirect(url_for('home'), code=302))
 
-@app.route('/doc/', methods=['GET', 'POST'])
+@app.route(PREFIX + '/doc/', methods=['GET', 'POST'])
 def doc():
     cookie, usr_id = login_check(request.cookies.get('session'))
     permission = permission_check(usr_id)
 
-    if permission >= 3:
+    if permission >= 2:
 
+        if "download" in request.args:
+            doc_id = request.args['download']
+            if doc_id:
+                return download_filed(doc_id, usr_id)
+            else:
+                return "Your downloads are too high. Please upload."
+
+
+        highlights = ""
         # download file
         if request.method == "POST":
             doc_id = request.form.get('download')
             if doc_id:
-                return download_filed(doc_id)
+                return download_filed(doc_id, usr_id)
 
             cite_id = request.form.get('voteUp')
-            if cite_id:
-                if vote(cite_id, 1, usr_id):
-                    return make_response(redirect(url_for('/'), code=302))
+            if permission >= 3:
+                if cite_id:
+                     sent = vote(cite_id, 1, usr_id)
                 else:
-                    return make_response(redirect(url_for('/'), code=302))
-
-            cite_id = request.form.get('voteDown')
-            if cite_id:
-                if vote(cite_id, -1, usr_id):
-                    return make_response(redirect(url_for('/'), code=302))
-                else:
-                    return make_response(redirect(url_for('/'), code=302))
-
-
+                    cite_id = request.form.get('voteDown')
+                    if cite_id:
+                        sent = vote(cite_id, -1, usr_id)
+                    else:
+                        sent = None
+            else:
+                sent =None
+            if sent != None:
+                highlights = """<p style="background:yellow;text-align:center;padding:15px;">Vote successful!</p>"""
+            else:
+                highlights = """<p style="background:cyan;text-align:center;padding:15px;">Vote was unsuccessful.</p>"""
 
         # get the document details page
         if "docID" in request.args:
@@ -1063,27 +1386,34 @@ def doc():
                     else:
                         validity= "border: 2px solid #d60000;"
 
-                    cites += """
-                            <div class ="card" style ="%s">
+                    if permission >= 3:
+                        cites += """
+                                 <div class ="card" style ="%s">
+                                    Citation: %s <br>
+                                    Authority: %s<br>
+                                    Validity index: %s <br>
+                                    <form method= "POST" style= "text-align: center">
+                                    <button name= "voteUp" value= "%s" style="border-radius: 10pt;">
+                                    <i class="fa fa-chevron-circle-up" style="font-size:48px;color:green"></i>
+                                    </button>
+
+                                    <button name= "voteDown" value= "%s" style="border-radius: 10pt;">
+                                    <i class="fa fa-chevron-circle-down" style="font-size:48px;color:red"></i>
+                                    </button>
+                                    </form>
+                                </div>
+                                    """%(validity, temp1[1], temp2, temp1[2], temp1[0], temp1[0])
+                    else:
+                        cites += """
+                             <div class ="card" style ="%s">
                                 Citation: %s <br>
                                 Authority: %s<br>
                                 Validity index: %s <br>
-
-                                <form method= "POST" style= "text-align: center">
-                                <button name= "voteUp" value= "%s" style="border-radius: 10pt;">
-                                <i class="fa fa-chevron-circle-up" style="font-size:48px;color:green"></i>
-                                </button>
-
-                                <button name= "voteDown" value= "%s" style="border-radius: 10pt;">
-                                <i class="fa fa-chevron-circle-down" style="font-size:48px;color:red"></i>
-                                </button>
-                                </form>
                             </div>
+                                """%(validity, temp1[1], temp2, temp1[2])
 
-                            """%(validity, temp1[1], temp2, temp1[2], temp1[0], temp1[0])
 
                 cites += "</div>"
-
                 body = """
                         <p>
                         Body: %s
@@ -1094,11 +1424,15 @@ def doc():
                         <p>
                         Description: %s
                         </p>
+                        <p style="text-align: center;">
+                        *This is a preview of the document and may not represent it's content/format accurately.<br>
+                        <iframe type="application/pdf" onload= "iframe_loaded();"></iframe>
+                        </p>
                         <form method="post">
                         <button value="%s" name= "download"> Download</button>
                         </form>
                        """%(body, venue, desc, doc_id)
-                return "<html>"+head(name,desc) + header(usr_id)+"<h2>" + name + "</h2><div class=\"content\">"+ body +"</div>"+ cites +footer() +"\n</html>"
+                return "<html>"+head(name,desc) + header(usr_id)+"<h2>" + name +"</h2><div class=\"content\">"+ highlights+ body +"</div>"+ cites +footer() +"\n</html>"
 
             except:
                 return "<html>"+head("Not found","") + header(usr_id)+" <h2>Document Not found</h2> <center><div class=\"content\">"  +"</div></center>"+ footer() +"\n</html>"
@@ -1106,17 +1440,23 @@ def doc():
         return make_response(redirect(url_for('usr_login'), code=302))
 
 
-@app.route('/getjson/', methods=['GET', 'POST'])
+@app.route(PREFIX + '/getvenues/', methods=['GET', 'POST'])
 def getjson():
     cookie, usr_id = login_check(request.cookies.get('session'))
     permission = permission_check(usr_id)
 
-    if "venues" in request.args and permission >= 1:
+    if permission >= 2:
+        if "text" in request.args:
+            try: # to make sure the arg is an int.
+                doc_id = int(request.args["text"])
+            except:
+                return "did not work"
+            return download_filed(doc_id, usr_id, True)
         db = MySQLdb.connect(host=db_host,user=db_user,passwd=db_passwd,db=db_db, autocommit=True)
         cursor =db.cursor()
 
         cursor.execute(\
-        "select name, venue_id from venues where body_id = %s"%(request.args["venues"]))
+        "select * from venues")
 
         return jsonify(cursor.fetchall())
         db.close()
